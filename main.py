@@ -49,36 +49,8 @@ if node == "1" and core == "8":
 
   for t in threads:
     t.join()
-    
-elif node == "2" and core == "8":
-  total_records = len(tweet_data_total)
-  records_per_thread = total_records // 16
 
-  comm = MPI.COMM_WORLD
-  rank = comm.Get_rank()
-  size = comm.Get_size()
-
-  threads = []
-  if rank == 0:
-    start_time = time.time()
-    for i in range(size-1):
-      start_index = i * records_per_thread
-      length = records_per_thread if i < size-2 else total_records - start_index
-
-      comm.send(tweet_data_total[start_index:start_index + length], dest=i+1)
-  else:
-    chunk = comm.recv(source=0)
-    solve_data(gcc_dict, person_data_dic, chunk, sal_data, author_ids)
-
-  if rank == 0:
-    for i in range(size-1):
-      threads.append(threading.Thread(target=comm.recv, args=(i+1,)))
-      threads[-1].start()
-
-    for t in threads:
-      t.join()
-
-print(f"{'Greater Capital City':<40}{'Numberof Tweets Made'}")
+print(f"{'Greater Capital City':<40}{'Number of Tweets Made'}")
 sorted_gcc_dict = sorted(gcc_dict.items(), key=lambda x: x[1], reverse=True)
 for gcc, count in sorted_gcc_dict:
     city = check_city(gcc)
