@@ -1,13 +1,13 @@
 import json
 import sys
 import threading
-from countCity import countCity, check_city
-from countPersonInCity import countPersonInCity, sort_dict_by_city
+from countCity import countCity
+from countPersonInCity import countPersonInCity
 from countPersonTweet import countPersonTweet
 import time
 from collections import Counter
-import heapq
 from mpi4py import MPI
+from print import printResult
 
 with open('./json/twitter-data-small.json', 'r', encoding='utf-8') as f:
     tweet_data_total = json.load(f)
@@ -32,6 +32,7 @@ start_time = time.time()
 
 if node == "1" and core == "1":
     solve_data(gcc_dict, person_data_dic,tweet_data_total, sal_data, author_ids)
+    printResult(gcc_dict, person_data_dic, author_ids, time, start_time)
 
 
 if node == "1" and core == "8":
@@ -50,35 +51,58 @@ if node == "1" and core == "8":
   for t in threads:
     t.join()
 
-print(f"{'Greater Capital City':<40}{'Number of Tweets Made'}")
-sorted_gcc_dict = sorted(gcc_dict.items(), key=lambda x: x[1], reverse=True)
-for gcc, count in sorted_gcc_dict:
-    city = check_city(gcc)
-    city_output = f"{gcc}({city})"
-    print(f"{city_output:<40}{count:<75}")
+  printResult(gcc_dict, person_data_dic, author_ids, time, start_time)
 
-print('-----------------------------------------------------------------------------------')
+if node == "2" and core == "8": 
+  comm = MPI.COMM_WORLD
+  rank = comm.Get_rank()
+  size = comm.Get_size()
+  
+  if size != 2:
+    print("Error: program must run on 2 processes")
+    sys.exit(1)
 
-sorted_data = sort_dict_by_city(person_data_dic) 
-print(f"{'Rank':<5}{'Author Id':<20}{'Number of Unique City Locations and #Tweets':<40}")
-for i, (author_id, value) in enumerate(sorted_data):
-    city_info = ' '.join([f'({value["city"][k]}{k})' for k in value['city']])
-    print(f'#{i+1:<5}{author_id:<20}{len(value["city"]):<2}#{value["tweets_num"]} tweets - {city_info}')
+  if rank == 0:
+    # process 0 reads first half of the data
+    tweet_data_chunk = tweet_data_total[:len(tweet_data_total)//2]
+    solve_data(gcc_dict, person_data_dic, tweet_data_chunk, sal_data, author_ids)
+    comm.send((gcc_dict, person_data_dic, author_ids), dest=1)
 
-print('-----------------------------------------------------------------------------------')
+  elif rank == 1:
+    # process 1 reads second half of the data
+    tweet_data_chunk = tweet_data_total[len(tweet_data_total)//2:]
+    solve_data(gcc_dict, person_data_dic, tweet_data_chunk, sal_data, author_ids)
+    data = comm.recv(source=0)
+    # combine results from both processes
+    for key in data[0]:
+      if key in gcc_dict:
+        gcc_dict[key] += data[0][key]
+      else:
+        gcc_dict[key] = data[0][key]
 
-count_dict = Counter(author_ids)
+    for key in data[1]:
+      if key in person_data_dic:
+        person_data_dic[key]['tweets_num'] += data[1][key]['tweets_num']
+        for k in data[1][key]['city']:
+          if k in person_data_dic[key]['city']:
+            person_data_dic[key]['city'][k] += data[1][key]['city'][k]
+          else:
+            person_data_dic[key]['city'][k] = data[1][key]['city'][k]
+      else:
+        person_data_dic[key] = data[1][key]
+
+    author_ids += data[2]
     
-top_10 = heapq.nlargest(10, count_dict.items(), key=lambda x: x[1])
+    printResult(gcc_dict, person_data_dic, author_ids, time, start_time)
 
-count_dict = Counter(author_ids)
-top_10 = heapq.nlargest(10, count_dict.items(), key=lambda x: x[1])
 
-print("Rank\tAuthor Id\t\tNumber of Tweets Made")
-for i, (id, count) in enumerate(top_10):
-  print(f"#{i+1}\t{id: <20}\t{count}")
 
-print('-----------------------------------------------------------------------------------')
+    
 
-print("elapsed time:", time.time() - start_time )
+
+
+
+
+
+
 
