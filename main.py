@@ -7,7 +7,7 @@ from countPersonTweet import countPersonTweet
 import time
 from collections import Counter
 import heapq
-
+from mpi4py import MPI
 
 with open('./json/twitter-data-small.json', 'r', encoding='utf-8') as f:
     tweet_data_total = json.load(f)
@@ -49,9 +49,8 @@ if node == "1" and core == "8":
 
   for t in threads:
     t.join()
- 
 
-print(f"{'Greater Capital City':<40}{'Numberof Tweets Made'}")
+print(f"{'Greater Capital City':<40}{'Number of Tweets Made'}")
 sorted_gcc_dict = sorted(gcc_dict.items(), key=lambda x: x[1], reverse=True)
 for gcc, count in sorted_gcc_dict:
     city = check_city(gcc)
